@@ -6,7 +6,7 @@ import numpy as np
 
 # Load data
 X = cfl.readcfl('data/knee')
-x = ifft(X, (0, 1, 2))
+x = ifft(X, (0, 1, 2))  # (1, 320, 256 ,8); (1, Height, Width, Coils)
 
 # Derive ESPIRiT operator
 esp = espirit(X, 6, 24, 0.01, 0.9925)
