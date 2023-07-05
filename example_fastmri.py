@@ -13,17 +13,36 @@ def mkdir(path):
     else:
         pass
 
-
+def get_data_name(path):
+    return os.path.splitext(os.path.basename(path))[0]
 
 
 if __name__ == '__main__':
     # Configurations
     is_load_data_temp = False
-    data_temp_path = 'fastmri_result/tmp_crop'
-    # data_temp_path = 'fastmri_result/tmp'
+    is_crop_to_320_pre = False
+    is_crop_to_320_post = True
 
     # Load data
-    data_path = 'data/fastMRI/file1000267.h5'
+    # data_path = 'data/fastMRI/file1000267.h5'
+    data_path = '/media/NAS03/fastMRI/knee/rawdata/multicoil_val/file1000031.h5'  #PD
+    # data_path = '/media/NAS03/fastMRI/knee/rawdata/multicoil_val/file1000267.h5'  # PDFS
+    data_name = get_data_name(data_path)
+
+    assert (is_crop_to_320_pre and is_crop_to_320_post) == False, "Cannot crop to 320 both pre and post"
+    if is_crop_to_320_pre == False and is_crop_to_320_post == False:
+        data_temp_path = os.path.join('fastmri_result/tmp', data_name)
+        data_save_path = os.path.join('fastmri_result/example', data_name)
+    elif is_crop_to_320_pre:
+        data_temp_path = os.path.join('fastmri_result/tmp_crop', data_name)
+        data_save_path = os.path.join('fastmri_result/example_crop_pre', data_name)
+    elif is_crop_to_320_post:
+        data_temp_path = os.path.join('fastmri_result/tmp', data_name)
+        data_save_path = os.path.join('fastmri_result/example_crop_post', data_name)
+    else:
+        raise ValueError("Unknown configuration")
+
+
     with h5py.File(data_path) as hf:
         kspace_data = hf['kspace'][()]  # (slices, coils, h, w) or (slices, h, w)
 
@@ -33,14 +52,16 @@ if __name__ == '__main__':
     kspace_data = kspace_data.transpose(0, 2, 3, 1)
 
     # Get slice
-    X = kspace_data[6:7, ...]
+    slice_idx = 6
+    X = kspace_data[slice_idx:slice_idx+1, ...]
     x = ifft(X, (1, 2))
 
     # image space center crop
     # H, W --> 320, 320
     h = x.shape[1]
     w = x.shape[2]
-    x = x[:, int(h / 2 - 160):int(h / 2 + 160), int(w / 2 - 160):int(w / 2 + 160), :]
+    if is_crop_to_320_pre:
+        x = x[:, int(h / 2 - 160):int(h / 2 + 160), int(w / 2 - 160):int(w / 2 + 160), :]
     X = fft(x, (1, 2))
 
     if not is_load_data_temp:
@@ -65,6 +86,12 @@ if __name__ == '__main__':
         proj = np.load(os.path.join(data_temp_path, 'proj.npy'))
         null = np.load(os.path.join(data_temp_path, 'null.npy'))
 
+    if is_crop_to_320_post:
+        esp = esp[:, int(h / 2 - 160):int(h / 2 + 160), int(w / 2 - 160):int(w / 2 + 160), ...]
+        x = x[:, int(h / 2 - 160):int(h / 2 + 160), int(w / 2 - 160):int(w / 2 + 160), ...]
+        ip = ip[:, int(h / 2 - 160):int(h / 2 + 160), int(w / 2 - 160):int(w / 2 + 160), ...]
+        proj = proj[:, int(h / 2 - 160):int(h / 2 + 160), int(w / 2 - 160):int(w / 2 + 160), ...]
+        null = null[:, int(h / 2 - 160):int(h / 2 + 160), int(w / 2 - 160):int(w / 2 + 160), ...]
 
     # Figure code
     esp = np.squeeze(esp)  # (H, W, coils, coils)
@@ -75,14 +102,14 @@ if __name__ == '__main__':
 
     print("Close figures to continue execution...")
 
-
-
     for idx in range(num_coils):
-        plt.imsave(os.path.join(data_temp_path, 'esp_{}.png'.format(idx)), np.abs(esp[:, :, idx, 0]), cmap='gray')
-        plt.imsave(os.path.join(data_temp_path, 'x_{}.png'.format(idx)), np.abs(x[:, :, idx]), cmap='gray')
-        plt.imsave(os.path.join(data_temp_path, 'ip_{}.png'.format(idx)), np.abs(ip[:, :, idx]), cmap='gray')
-        plt.imsave(os.path.join(data_temp_path, 'proj_{}.png'.format(idx)), np.abs(proj[:, :, idx]), cmap='gray')
-        plt.imsave(os.path.join(data_temp_path, 'null_{}.png'.format(idx)), np.abs(null[:, :, idx]), cmap='gray')
+        mkdir(data_save_path)
+        plt.imsave(os.path.join(data_save_path, 'esp_{}.png'.format(idx)), np.abs(esp[:, :, idx, 0]), cmap='gray')
+        plt.imsave(os.path.join(data_save_path, 'x_{}.png'.format(idx)), np.abs(x[:, :, idx]), cmap='gray')
+        plt.imsave(os.path.join(data_save_path, 'ip_{}.png'.format(idx)), np.abs(ip[:, :, idx]), cmap='gray')
+        plt.imsave(os.path.join(data_save_path, 'proj_{}.png'.format(idx)), np.abs(proj[:, :, idx]), cmap='gray')
+        plt.imsave(os.path.join(data_save_path, 'null_{}.png'.format(idx)), np.abs(null[:, :, idx]), cmap='gray')
+    plt.imsave(os.path.join(data_save_path, 'rss_gt.png'), np.abs(np.sqrt(np.sum(np.power(x, 2), axis=2))), cmap='gray')
 
 
 
